@@ -1,5 +1,4 @@
-# object_translate_sentence_project/app.py
-
+# importation of libraries
 from flask import Flask, request, jsonify, send_from_directory
 from PIL import Image
 import io
@@ -10,6 +9,8 @@ from models.translator import ObjectTranslator
 from models.sentence_generator import SentenceGenerator
 import os
 from flask_cors import CORS
+
+
 
 app = Flask(__name__)
 CORS(app)
