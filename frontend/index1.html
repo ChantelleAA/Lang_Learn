@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Object Translator & Sentence Generator</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      padding: 2rem;
+      background-color: #eef2f7;
+      font-family: 'Segoe UI', sans-serif;
+    }
+    .card {
+      max-width: 800px;
+      margin: auto;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      background-color: #fff;
+    }
+    .btn {
+      width: 100%;
+    }
+    #resultArea {
+      margin-top: 2rem;
+    }
+    .spinner-border {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h3 class="mb-4 text-center">Object Translator & Sentence Generator</h3>
+
+    <div class="mb-3">
+      <label for="imageInput" class="form-label">Upload an Image</label>
+      <input type="file" class="form-control" id="imageInput" accept="image/*">
+    </div>
+
+    <div class="mb-3">
+      <label for="languageSelect" class="form-label">Choose Language</label>
+      <select class="form-select" id="languageSelect">
+        <option value="aka_Latn">Twi</option>
+        <option value="fra_Latn">French</option>
+        <option value="spa_Latn">Spanish</option>
+        <option value="swh_Latn">Swahili</option>
+        <option value="yor_Latn">Yoruba</option>
+        <option value="arb_Arab">Arabic</option>
+      </select>
+    </div>
+
+    <button class="btn btn-primary" onclick="submitImage()">Process</button>
+    <div class="text-center mt-3">
+      <div class="spinner-border text-primary" id="loader" role="status"></div>
+    </div>
+
+    <div id="resultArea"></div>
+  </div>
+
+  <script>
+    function submitImage() {
+      const fileInput = document.getElementById('imageInput');
+      const lang = document.getElementById('languageSelect').value;
+      const loader = document.getElementById('loader');
+      const resultArea = document.getElementById('resultArea');
+      resultArea.innerHTML = '';
+
+      if (!fileInput.files[0]) {
+        alert("Please upload an image.");
+        return;
+      }
+
+      loader.style.display = 'inline-block';
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        fetch("http://localhost:5000/process", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image: reader.result,
+            language: lang
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          loader.style.display = 'none';
+          displayResults(data);
+        })
+        .catch(err => {
+          loader.style.display = 'none';
+          alert("Failed: " + err);
+        });
+      };
+      reader.readAsDataURL(fileInput.files[0]);
+    }
+
+    function displayResults(data) {
+      if (data.error) {
+        alert("Error: " + data.error);
+        return;
+      }
+
+      const table = document.createElement("table");
+      table.className = "table table-bordered table-striped mt-4";
+
+      const header = `
+        <thead class="table-light">
+          <tr>
+            <th>Object</th>
+            <th>Translation</th>
+            <th>Sentence</th>
+            <th>Translated Sentence</th>
+            <th>Meaning</th>
+            <th>Translated Meaning</th>
+            <th>Synonyms</th>
+            <th>Translated Synonyms</th>
+          </tr>
+        </thead>
+        <tbody>`;
+      table.innerHTML = header;
+
+      data.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.word || row.object || 'N/A'}</td>
+          <td>${row.translation || 'N/A'}</td>
+          <td>${row.sentence || row.sentence_en || 'N/A'}</td>
+          <td>${row.sentence_translated || 'N/A'}</td>
+          <td>${row.definition || row.meaning_en || 'N/A'}</td>
+          <td>${row.meaning_translated || row.translated_meaning || 'N/A'}</td>
+          <td>${(row.synonyms || row.synonyms_en || []).join(", ") || 'N/A'}</td>
+          <td>${(row.synonyms_translated || []).join(", ") || 'N/A'}</td>
+        `;
+        table.querySelector("tbody").appendChild(tr);
+      });
+      document.getElementById("resultArea").appendChild(table);
+    }
+  </script>
+</body>
+</html>

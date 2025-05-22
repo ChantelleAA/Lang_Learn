@@ -1,0 +1,9 @@
+openai
+ultralytics
+transformers
+torch
+Pillow
+language-tool-python
+textstat
+flask
+flask-cors
