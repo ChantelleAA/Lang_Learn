@@ -10,10 +10,9 @@ from models.object_detector import ObjectDetector
 from models.translator import ObjectTranslator
 from models.sentence_generator import SentenceGenerator
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
 CORS(app)
 
-# Initialize components globally with error handling
 try:
     detector = ObjectDetector()
     translator = ObjectTranslator("aka_Latn")
@@ -50,12 +49,10 @@ def process():
 
         image_b64 = data.get("image")
         target_lang = data.get("language", "aka_Latn")
-
         supported_languages = ["aka_Latn", "en", "fr", "es", "de"]
         if target_lang not in supported_languages:
             return jsonify({"error": f"Unsupported language. Supported: {supported_languages}"}), 400
 
-        print(f"Processing image with target language: {target_lang}")
         translator.set_language(target_lang)
 
         try:
@@ -65,21 +62,22 @@ def process():
 
         if not os.path.exists("output"):
             os.makedirs("output")
+        if not os.path.exists("static/crops"):
+            os.makedirs("static/crops")
 
         image_path = "output/uploaded_image.jpg"
         if image.mode != 'RGB':
             image = image.convert('RGB')
         image.save(image_path, quality=95)
-        print(f"Image saved to: {image_path}")
 
         try:
             result = detector.detect(image_path)
-            objects = list(set(detector.get_class_names(result)))
-            print(f"Detected objects: {objects}")
+            boxes = detector.get_boxes(result)
+            classes = detector.get_class_names(result)
+            objects = list(set(classes))
             if not objects:
                 return jsonify({"error": "No objects detected in the image"}), 400
         except Exception as e:
-            print(f"Object detection error: {e}")
             traceback.print_exc()
             return jsonify({"error": f"Object detection failed: {str(e)}"}), 500
 
@@ -89,14 +87,11 @@ def process():
             for obj in objects:
                 desc = sentence_gen.describe_object(obj)
                 gpt_descriptions.append(desc)
-                print(f"Generated description for {obj}: {desc}")
-
                 sentences.append(desc.get("chatgpt_sentence", ""))
                 meanings.append(desc.get("chatgpt_meaning", ""))
                 syns = desc.get("chatgpt_synonyms", [])
                 synonyms_flat.extend(syns)
         except Exception as e:
-            print(f"Sentence generation error: {e}")
             traceback.print_exc()
             return jsonify({"error": f"Description generation failed: {str(e)}"}), 500
 
@@ -106,7 +101,6 @@ def process():
             translated_meanings = translator.translate(meanings)
             translated_synonyms_flat = translator.translate(synonyms_flat)
         except Exception as e:
-            print(f"Translation error: {e}")
             traceback.print_exc()
             return jsonify({"error": f"Translation failed: {str(e)}"}), 500
 
@@ -118,6 +112,15 @@ def process():
                 translated_syns = translated_synonyms_flat[idx:idx + syn_count]
                 idx += syn_count
 
+                safe_filename = obj.replace(" ", "_").lower() + ".jpg"
+                image_crop_path = os.path.join("static", "crops", safe_filename)
+                for box, cls in zip(boxes, classes):
+                    if cls == obj:
+                        x1, y1, x2, y2 = map(int, box)
+                        cropped_img = image.crop((x1, y1, x2, y2))
+                        cropped_img.save(image_crop_path, format='JPEG')
+                        break
+
                 output.append({
                     "word": obj,
                     "translation": translated_object_names[i],
@@ -126,19 +129,17 @@ def process():
                     "sentence_en": desc.get("chatgpt_sentence", ""),
                     "sentence_translated": translated_sentences[i],
                     "synonyms_en": desc.get("chatgpt_synonyms", []),
-                    "synonyms_translated": translated_syns
+                    "synonyms_translated": translated_syns,
+                    "image_crop": f"/static/crops/{safe_filename}"
                 })
 
-            print(f"Final output prepared with {len(output)} items")
             return jsonify(output)
 
         except Exception as e:
-            print(f"Output building error: {e}")
             traceback.print_exc()
             return jsonify({"error": f"Output preparation failed: {str(e)}"}), 500
 
     except Exception as e:
-        print(f"Unexpected error in process route: {e}")
         traceback.print_exc()
         return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
 
