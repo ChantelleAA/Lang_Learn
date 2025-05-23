@@ -3,13 +3,18 @@ from PIL import Image
 import io
 import base64
 import requests
-import os
 import traceback
 from flask_cors import CORS
 from models.object_detector import ObjectDetector
 from models.translator import ObjectTranslator
 from models.sentence_generator import SentenceGenerator
+import os
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+CROPS_DIR = os.path.join(STATIC_DIR, "crops")
+
+os.makedirs(CROPS_DIR, exist_ok=True)
 app = Flask(__name__, static_url_path='/static')
 CORS(app)
 
@@ -72,7 +77,7 @@ def process():
 
         try:
             result = detector.detect(image_path)
-            boxes = detector.get_boxes(result)
+            boxes = detector.get_bounding_boxes(result)
             classes = detector.get_class_names(result)
             objects = list(set(classes))
             if not objects:
@@ -113,7 +118,7 @@ def process():
                 idx += syn_count
 
                 safe_filename = obj.replace(" ", "_").lower() + ".jpg"
-                image_crop_path = os.path.join("static", "crops", safe_filename)
+                image_crop_path = os.path.join(CROPS_DIR, safe_filename)
                 for box, cls in zip(boxes, classes):
                     if cls == obj:
                         x1, y1, x2, y2 = map(int, box)
