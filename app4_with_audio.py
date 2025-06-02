@@ -16,6 +16,9 @@ import logging
 from werkzeug.utils import secure_filename
 import subprocess
 import platform
+from download_model import download_model
+
+download_model()
 
 # Audio processing imports (lightweight alternatives)
 try:
